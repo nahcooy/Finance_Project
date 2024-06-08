@@ -31,9 +31,10 @@ def day2weekNmonth(base_dir, stock_name):
     df['Date'] = pd.to_datetime(df['Date'])
     df.set_index('Date', inplace=True)
     weekly_data = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum', 'Change': 'sum'})
-    weekly_data.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'special', f'{stock_name}_week.csv'))
-    monthly_data = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum', 'Change': 'sum'})
-    monthly_data.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'special', f'{stock_name}_month.csv'))
+    weekly_data.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'week', f'{stock_name}_week.csv'))
+    monthly_data = df.resample('ME').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum', 'Change': 'sum'})
+    monthly_data.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'month', f'{stock_name}_month.csv'))
+
 
 
 def all_stock_data_day2weekNmonth(base_dir):
@@ -42,6 +43,7 @@ def all_stock_data_day2weekNmonth(base_dir):
     for csv_file in csv_files:
         stock_name = os.path.splitext(os.path.basename(csv_file))[0][:-4]
         day2weekNmonth(base_dir, stock_name)
+
 
 
 def caculate_moving_average(df, period):
@@ -68,7 +70,7 @@ def create_basic_moving_average(base_dir, stock_name):
     periods = [5, 10, 20, 60, 120, 240]
     ma_data = {f'ma_{period:03d}': caculate_moving_average(price_data, period) for period in periods}
     df_ma = pd.DataFrame({'Date': date_data, **ma_data})
-    df_ma.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'special', f'{stock_name}_ma.csv'), index=False)
+    df_ma.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'ma', f'{stock_name}_ma.csv'), index=False)
 
 
 def ma4all(base_dir):
@@ -94,7 +96,7 @@ def create_macd_data(base_dir, stock_name):
     date_data = pd.Series(df['Date'])
     macd, signal, histogram = calculate_macd(price_data)
     df_macd = pd.DataFrame({'Date': date_data, 'macd': macd, 'signal': signal, 'histogram': histogram})
-    df_macd.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'special', f'{stock_name}_macd.csv'), index=False)
+    df_macd.to_csv(os.path.join(base_dir, 'stock_investing_gui', 'stock_data', 'macd', f'{stock_name}_macd.csv'), index=False)
 
 
 def create_all_macd(base_dir):

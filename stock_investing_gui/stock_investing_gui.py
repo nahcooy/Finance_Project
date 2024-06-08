@@ -11,6 +11,8 @@ from stock_indicators import (
     create_rsi_all_csv
 )
 from visualization_functions import stock_info_Visualization
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg  # Import 추가
+
 
 
 # 주식 데이터 크롤링 함수 호출 및 저장
@@ -51,7 +53,6 @@ def open_crawling_window(base_dir):
         [sg.Column([[sg.Button('Create Bollinger Bands', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Create WeeklyNMonthly Prices', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Create Moving Averages (MA)', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
-        [sg.Column([[sg.Button('Create Moving Averages (MA)', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Create MACD', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Create RSI', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Create All', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
@@ -78,10 +79,10 @@ def open_crawling_window(base_dir):
             print("Creating Bollinger Bands...")
             bollinger_bands_for_all(base_dir)
             sg.popup('Bollinger Bands creation completed.')
-        elif event == 'Create Weekly Prices':
+        elif event == 'Create WeeklyNMonthly Prices':
             print("Creating WeeklyNMonthly Prices...")
             all_stock_data_day2weekNmonth(base_dir)
-            sg.popup('Weekly Prices creation completed.')
+            sg.popup('WeeklyNMonthly Prices creation completed.')
         elif event == 'Create Moving Averages (MA)':
             print("Creating Moving Averages (MA)...")
             ma4all(base_dir)
@@ -138,27 +139,33 @@ def open_visualization_window(base_dir):
 
 def open_visualization_version1_window(base_dir):
     print("Opening visualization version 1 window...")
-    subdirs = ['day', 'ma', 'macd', 'RSI', 'special', 'BB']
+    subdirs = ['day', 'ma', 'macd', 'RSI', 'BB']
     layout = [
         [sg.Text('Select Data to Visualize:', size=(40, 1), font=("Helvetica", 25), justification='center')],
         [sg.Column([[sg.Checkbox(subdir, key=subdir) for subdir in subdirs]], justification='center')],
+        [sg.Text('Enter Stock Name:', font=("Helvetica", 15))],
+        [sg.Input(key='stock_name', size=(20, 1))],
         [sg.Text('Select Start Date (YYYY-MM-DD):', font=("Helvetica", 15))],
         [sg.Input(key='start_date', size=(20, 1)),
          sg.CalendarButton('Select Date', target='start_date', format='%Y-%m-%d')],
         [sg.Text('Select End Date (YYYY-MM-DD):', font=("Helvetica", 15))],
         [sg.Input(key='end_date', size=(20, 1)),
          sg.CalendarButton('Select Date', target='end_date', format='%Y-%m-%d')],
-        [sg.Column([[sg.Button('Visualize', size=(30, 2), font=("Helvetica", 20))]], justification='center')],
+        [sg.Column([[sg.Button('Visualize', size=(15, 2), font=("Helvetica", 20)),
+                     sg.Button('Save', size=(15, 2), font=("Helvetica", 20))]], justification='center')],
         [sg.Column([[sg.Button('Back', size=(30, 2), font=("Helvetica", 20))]], justification='center')]
     ]
 
-    window_width, window_height = 700, 500
     screen_width, screen_height = sg.Window.get_screen_size()
+    window_width = int(screen_width * 0.75)
+    window_height = int(screen_height * 0.75)
     location = (screen_width // 2 - window_width // 2, screen_height // 2 - window_height // 2)
 
     new_window = sg.Window('Visualization ver1', layout, size=(window_width, window_height), location=location,
                            finalize=True)
     new_window.TKroot.resizable(False, False)
+
+    fig = None
 
     while True:
         event, values = new_window.read()
@@ -167,31 +174,50 @@ def open_visualization_version1_window(base_dir):
             break
         if event == 'Visualize':
             selected_subdirs = [subdir for subdir in subdirs if values[subdir]]
+            stock_name = values['stock_name']
             start_date = values['start_date']
             end_date = values['end_date']
 
             if not selected_subdirs:
                 sg.popup('No data selected for visualization.')
                 print("No data selected for visualization.")
+            elif not stock_name:
+                sg.popup('Please enter a stock name.')
+                print("Stock name not entered.")
             elif not start_date or not end_date:
                 sg.popup('Please select both start and end dates.')
                 print("Start date or end date not selected.")
             else:
-                stock_info_path = os.path.join(base_dir, 'stock_codes.csv')
-                stock_info = pd.read_csv(stock_info_path)
-                stock_name = 'AAPL'  # Example stock name
-                listing_date = stock_info.loc[stock_info['company'] == stock_name, 'listing_date'].values[0]
-
-                if pd.to_datetime(start_date) < pd.to_datetime(listing_date):
-                    sg.popup(
-                        f'Start date {start_date} is before the listing date {listing_date} of {stock_name}. Please select a valid start date.')
-                    print(f"Invalid start date: {start_date} is before listing date: {listing_date}")
+                gui_dir = os.path.join(base_dir, 'stock_investing_gui')
+                stock_info_path = os.path.join(gui_dir, 'stock_codes.csv')
+                try:
+                    stock_info = pd.read_csv(stock_info_path, encoding='cp949')
+                except UnicodeDecodeError:
+                    sg.popup('Error reading the stock codes file. Please check the file encoding.')
+                    print("Error reading the stock codes file. Please check the file encoding.")
+                    continue
+                if stock_name not in stock_info['company'].values:
+                    sg.popup(f'Stock name {stock_name} not found in the stock codes.')
+                    print(f"Stock name {stock_name} not found.")
                 else:
-                    print(f"Visualizing data for {stock_name} from {start_date} to {end_date}")
-                    visualize_stock_data(base_dir, selected_subdirs, stock_name, start_date, end_date)
+                    listing_date = stock_info.loc[stock_info['company'] == stock_name, 'listing_date'].values[0]
+                    if pd.to_datetime(start_date) < pd.to_datetime(listing_date):
+                        sg.popup(
+                            f'Start date {start_date} is before the listing date {listing_date} of {stock_name}. Please select a valid start date.')
+                        print(f"Invalid start date: {start_date} is before listing date: {listing_date}")
+                    else:
+                        print(f"Visualizing data for {stock_name} from {start_date} to {end_date}")
+                        fig = stock_info_Visualization(base_dir, stock_name, start_date, end_date, selected_subdirs)
+                        window = sg.Window('Stock Data Visualization', layout, finalize=True, location=location)
+                        window.TKroot.resizable(False, False)
+                        figure_canvas_agg = draw_figure(window['canvas'].TKCanvas, fig)
+        if event == 'Save' and fig:
+            print("Saving visualization...")
+            save_visualization(fig, stock_name, start_date, end_date, base_dir)
 
     new_window.close()
     print("Visualization version 1 window closed.")
+
 
 def visualize_stock_data(base_dir, selected_subdirs, stock_name, start_date, end_date):
     print(f"Visualizing stock data for {stock_name} from {start_date} to {end_date}")
@@ -203,7 +229,8 @@ def visualize_stock_data(base_dir, selected_subdirs, stock_name, start_date, end
     window = sg.Window('Stock Data Visualization', layout, finalize=True, location=(None, None))
     window.TKroot.resizable(False, False)
 
-    fig = stock_info_Visualization(stock_name, start_date, end_date, selected_subdirs)
+    fig = stock_info_Visualization(base_dir, stock_name, start_date, end_date, selected_subdirs)
+    figure_canvas_agg = draw_figure(window['canvas'].TKCanvas, fig)
 
     while True:
         event, values = window.read()
@@ -217,9 +244,16 @@ def visualize_stock_data(base_dir, selected_subdirs, stock_name, start_date, end
     window.close()
     print("Stock data visualization window closed.")
 
+def draw_figure(canvas, figure):
+    figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
+    figure_canvas_agg.draw()
+    figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
+    return figure_canvas_agg
+
+
 
 def save_visualization(fig, stock_name, start_date, end_date, base_dir):
-    save_directory = os.path.join(base_dir, 'vis')
+    save_directory = os.path.join(base_dir, 'stock_investing_gui', 'vis')
     os.makedirs(save_directory, exist_ok=True)
     save_path = os.path.join(save_directory, f'{stock_name}_{start_date}_{end_date}_visualization.png')
     fig.savefig(save_path)
