@@ -12,8 +12,8 @@ from stock_indicators import (
 )
 from visualization_functions import stock_info_Visualization
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg  # Import 추가
-
-
+from investment_simulator import simulate_investment
+from visualization_v2 import stock_info_Visualization_v2
 
 # 주식 데이터 크롤링 함수 호출 및 저장
 def crawl_and_save_stock_data(base_dir):
@@ -132,10 +132,46 @@ def open_visualization_window(base_dir):
         if event == '시각화 ver1':
             open_visualization_version1_window(base_dir)
         if event == '시각화 ver2':
-            sg.popup('Visualization ver2 not yet implemented.')
+            open_visualization_version2_window(base_dir)
 
     new_window.close()
     print("Visualization window closed.")
+
+def open_visualization_version2_window(base_dir):
+    layout = [
+        [sg.Text('Enter Stock Name:', font=("Helvetica", 15))],
+        [sg.Input(key='stock_name', size=(20, 1))],
+        [sg.Button('Visualize', size=(15, 2), font=("Helvetica", 20))],
+        [sg.Button('Back', size=(15, 2), font=("Helvetica", 20))]
+    ]
+
+    window = sg.Window('Visualization ver2', layout, finalize=True, location=(None, None))
+    window.TKroot.resizable(False, False)
+
+    while True:
+        event, values = window.read()
+        print(f"Event: {event}, Values: {values}")
+        if event == sg.WINDOW_CLOSED or event == 'Back':
+            break
+        if event == 'Visualize':
+            stock_name = values['stock_name']
+            save_path = os.path.join(base_dir, 'stock_investing_gui', stock_name, f'investment_simulation_results_{stock_name}.csv')
+
+            if not os.path.exists(save_path):
+                sg.popup('Please validate the stock algorithm first.')
+                print("Simulation results file not found.")
+            else:
+                df_results = pd.read_csv(save_path)
+                for index, row in df_results.iterrows():
+                    buy_date = row['Buy Date']
+                    sell_date = row['Sell Date']
+                    stock_info_Visualization_v2(stock_name, buy_date, sell_date, 20, 20, base_dir)  # 구매날짜 -20일, 판매날짜 +20일 동안 시각화
+                sg.popup('Visualization completed.')
+                print("Visualization completed.")
+
+    window.close()
+    print("Visualization version 2 window closed.")
+
 
 def open_visualization_version1_window(base_dir):
     print("Opening visualization version 1 window...")
@@ -156,9 +192,8 @@ def open_visualization_version1_window(base_dir):
         [sg.Column([[sg.Button('Back', size=(30, 2), font=("Helvetica", 20))]], justification='center')]
     ]
 
+    window_width, window_height = 700, 500
     screen_width, screen_height = sg.Window.get_screen_size()
-    window_width = int(screen_width * 0.75)
-    window_height = int(screen_height * 0.75)
     location = (screen_width // 2 - window_width // 2, screen_height // 2 - window_height // 2)
 
     new_window = sg.Window('Visualization ver1', layout, size=(window_width, window_height), location=location,
@@ -207,10 +242,8 @@ def open_visualization_version1_window(base_dir):
                         print(f"Invalid start date: {start_date} is before listing date: {listing_date}")
                     else:
                         print(f"Visualizing data for {stock_name} from {start_date} to {end_date}")
-                        fig = stock_info_Visualization(base_dir, stock_name, start_date, end_date, selected_subdirs)
-                        window = sg.Window('Stock Data Visualization', layout, finalize=True, location=location)
-                        window.TKroot.resizable(False, False)
-                        figure_canvas_agg = draw_figure(window['canvas'].TKCanvas, fig)
+                        visualize_stock_data(base_dir, selected_subdirs, stock_name, start_date, end_date)
+
         if event == 'Save' and fig:
             print("Saving visualization...")
             save_visualization(fig, stock_name, start_date, end_date, base_dir)
@@ -262,6 +295,44 @@ def save_visualization(fig, stock_name, start_date, end_date, base_dir):
 
 
 # 메인 함수
+def validate_stock_algorithm_window(base_dir):
+    layout = [
+        [sg.Text('Enter Stock Name:', font=("Helvetica", 15))],
+        [sg.Input(key='stock_name', size=(20, 1))],
+        [sg.Button('Validate', size=(15, 2), font=("Helvetica", 20))],
+        [sg.Button('Back', size=(15, 2), font=("Helvetica", 20))]
+    ]
+
+    window = sg.Window('Validate Stock Algorithm', layout, finalize=True, location=(None, None))
+    window.TKroot.resizable(False, False)
+
+    while True:
+        event, values = window.read()
+        print(f"Event: {event}, Values: {values}")
+        if event == sg.WINDOW_CLOSED or event == 'Back':
+            break
+        if event == 'Validate':
+            stock_name = values['stock_name']
+
+            if not stock_name:
+                sg.popup('Please enter a stock name.')
+                print("Stock name not entered.")
+            else:
+                macd_directory = os.path.join(base_dir, 'stock_investing_gui','stock_data', 'macd')
+                day_directory = os.path.join(base_dir, 'stock_investing_gui','stock_data', 'day')
+                return_rate = simulate_investment(macd_directory, day_directory, base_dir, stock_name)
+                if return_rate is not None:
+                    sg.popup(f'Stock algorithm validation completed. Return Rate: {return_rate:.4f}%')
+                    print(f"Stock algorithm validation completed. Return Rate: {return_rate:.4f}%")
+                else:
+                    sg.popup('Simulation failed. Please check the data and try again.')
+                    print("Simulation failed. Please check the data and try again.")
+
+    window.close()
+    print("Stock algorithm validation window closed.")
+
+
+
 def main():
     sg.theme('LightBlue2')
 
@@ -309,8 +380,11 @@ def main():
                 open_visualization_window(base_dir)
 
         if event == 'Validate Stock Algorithm':
-            sg.popup('Stock algorithm validation feature is not yet implemented.')
-            print("Stock algorithm validation feature not yet implemented.")
+            if not base_dir:
+                sg.popup('Please set the base directory first.')
+                print("Base directory not set.")
+            else:
+                validate_stock_algorithm_window(base_dir)
 
     window.close()
     print("Main window closed.")
